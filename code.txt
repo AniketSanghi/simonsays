@@ -1,0 +1,211 @@
+#include <LiquidCrystal.h>
+
+const int rs = 13, en = 12, d4 = 3, d5 = 2, d6 = 1, d7 = 0;
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+
+int pin[4];            //Pins through which Program will give commands
+
+int pinButton[4];      //Pins to detect user input
+
+int memoryCount = 1;   //Number of blinks
+
+int blinkDelay = 800;  //Blink length
+
+int i,t; 				   //Useful Variables
+int end = 0;
+
+int questionTime = 1;  //Variable to keep track if the question is to be asked
+int question[100];   //Last Possible memory to conquer
+
+
+//To control Debounce
+int reading[4]; 	   				//To keep track of the reading of the 4 buttons
+int lastButtonState[4];				//To keep track of the previous button state
+int buttonState[4]; 				//The button states...
+unsigned long lastDebounceTime[4];	//Keep track of last rebounce time for individual buttons
+unsigned long debounceTime = 20;	//The Debounce Time
+int ledState[4];                   //Keep track of state of that LED
+
+
+
+
+
+
+//Function to make an LED Blink
+void Blink(int LED)
+{
+  digitalWrite(pin[LED],HIGH);
+  delay(blinkDelay);
+  digitalWrite(pin[LED],LOW);
+  delay(blinkDelay);
+}
+
+//Funtion to generate randomBlinks (A Question)
+void RandomBlink(int count,int *question)
+{ 
+  
+   question[count-1] = random(0,4);
+  for(i=0;i<count;++i)
+   Blink(question[i]);
+  
+}
+
+
+
+
+
+
+
+void setup()
+{
+  lcd.begin(16, 2);
+  // Print a message to the LCD.
+  lcd.setCursor(0,0);
+  lcd.print("SIMON SAYS!"); 
+  delay(800);
+  lcd.clear();
+  //Serial Port initialisation
+  //Serial.begin(9600);
+  
+  //Initialising OUTPUT pins
+  pin[0] = 4;  //RED
+  pin[1] = 5;  //GREEN
+  pin[2] = 6;  //BLUE
+  pin[3] = 7;  //YELLOW
+  
+  //Initialising INPUT pins
+  pinButton[0] = 8;  //RED
+  pinButton[1] = 9;  //GREEN
+  pinButton[2] = 10; //BLUE
+  pinButton[3] = 11; //YELLOW
+  
+  
+  for(i=0;i<4;++i)
+  {
+    //MyPins, through which my program will give commands
+    pinMode(pin[i], OUTPUT);
+    
+    //Pins to detect user input
+    pinMode(pinButton[i], INPUT);
+  
+    //Initialise Variables
+    lastButtonState[i] = LOW;
+    lastDebounceTime[i] = 0;
+    buttonState[i] = LOW;
+    ledState[i] = LOW;
+  }
+        
+  Serial.println("SIMON SAY'S");
+
+  //Seeding Random Function
+  randomSeed(analogRead(3));
+}
+
+void loop()
+{
+  
+  
+  
+  //To create new level when the person clears previous level
+  if(questionTime == 1)
+  {
+    lcd.clear();
+    lcd.print("LEVEL: ");
+    lcd.print(memoryCount);
+    
+    RandomBlink(memoryCount,question);
+  	questionTime = 0;
+    t = 0;
+  }
+  
+  //When the question is created, its time to track user input
+  if(questionTime == 0)
+  {
+    
+    //Update Readings
+    for(i=0;i<4;++i)  
+    {
+      reading[i] = digitalRead(pinButton[i]);
+      
+      if (reading[i] != lastButtonState[i]) 
+      {
+    	// reset the debouncing timer
+    	lastDebounceTime[i] = millis();
+  	  }
+    }
+
+    for(i=0;i<4;++i)
+    {
+      //Handling Debounce by debounceTime
+      if((millis() - lastDebounceTime[i]) > debounceTime)
+      {
+
+		  int change = 0;   //To not get multiple input on continuous press
+          if(reading[i] != buttonState[i]) buttonState[i]=reading[i],change=1;
+
+          if(buttonState[i] == HIGH && change==1) 
+          {
+            ledState[i] = HIGH;
+            
+            if(i==question[t])   //Check if the pressed input was as per the question
+            {
+              if(t==memoryCount-1) //If the final input is also correct
+              {
+                questionTime = 1;  //Move to the next question
+                memoryCount++;	   //Increase memory Count (MORE BLINKS)
+                
+              }
+            }
+            else
+            {
+              end = 1;
+              break;
+            }
+            t++;
+          }
+          //If the push button is down
+          if(buttonState[i] == LOW && change==1)
+          ledState[i] = LOW;
+      }
+    }
+    if(end == 1)
+    {
+      lcd.clear();
+      lcd.print("GAME OVER");
+      questionTime = -1;
+    }
+    for(i = 0;i<4;++i)
+    {
+        //Update LED State
+    	digitalWrite(pin[i],ledState[i]);
+        //Update Last Button State
+      	lastButtonState[i] = reading[i];
+    }
+    
+    if(questionTime==1)
+    {
+      //When previous question is solved get some space
+      for(i=0;i<4;++i)
+      {
+        if(ledState[i]==1)
+        {
+          delay(1000);
+          ledState[i]=LOW;
+          digitalWrite(pin[i],LOW);
+          lcd.clear();
+          lcd.print("SUCCESS");
+          delay(2000);
+          
+        }
+      }
+    }
+    
+  
+    
+  }
+}
+
+
+
+
+
